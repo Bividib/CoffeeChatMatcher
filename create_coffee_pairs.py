@@ -9,6 +9,7 @@ import re
 SHEET_NAME = "All Exe & Ass" # The sheet with the member list
 PAST_MATCHES_PREFIX = "past_matches_"
 PAST_MATCHES_SUFFIX = ".csv"
+CURRENT_MATCHES_FILE = "current_matches.txt"
 
 # --- 2. Helper Functions ---
 
@@ -44,7 +45,7 @@ def get_member_file():
             print(f"Error: No .xlsx file found in directory: {script_dir}")
             return None
 
-def load_member_data(member_file): # <-- HEAVILY MODIFIED
+def load_member_data(member_file):
     """
     Loads and cleans the current member list from the given Excel file.
     If duplicates or missing columns are found, prints an error and exits.
@@ -208,14 +209,12 @@ def create_new_pairs():
         print("Exiting script. Please provide an Excel file.")
         return
 
-    # load_member_data now handles all cleaning and validation
     people_to_pair, member_lookup = load_member_data(member_file)
-
     past_pairs, next_version = load_past_matches()
     
     random.shuffle(people_to_pair)
-    new_pairs = [] # Will store tuples of (p1_id, p2_id)
-    unmatched = [] # Will store unmatched p_ids
+    new_pairs = [] # Stores tuples of (p1_id, p2_id)
+    unmatched = [] # Stores unmatched p_ids
 
     print(f"Starting with {len(people_to_pair)} people...")
 
@@ -238,40 +237,56 @@ def create_new_pairs():
     # --- 4. Output and Save Results ---
     print("\n--- New Coffee Chat Pairs ---")
     
-    # Printing cleaned names
+    # These lists will hold the *names* for saving
+    pairs_for_csv_history = []
+    lines_for_txt_output = []
+
     for (p1_id, p2_id) in new_pairs:
         p1_name = member_lookup[p1_id]['Full Name']
         p2_name = member_lookup[p2_id]['Full Name']
+        
+        # 1. Print to console
         print(f"{p1_name}  <-->  {p2_name}")
+        
+        # 2. Prepare for saving
+        pairs_for_csv_history.append((p1_name, p2_name))
+        lines_for_txt_output.append(f"{p1_name} <--> {p2_name}")
 
-    if unmatched:
-        print("\n--- Unmatched People (Odd one out) ---")
-        for p_id in unmatched:
-            p_name = member_lookup[p_id]['Full Name']
-            print(p_name)
+    print("\n--- Unmatched People (Odd one out) ---")
+    unmatched_names = []
+    for p_id in unmatched:
+        p_name = member_lookup[p_id]['Full Name']
+        print(p_name)
+        unmatched_names.append(p_name)
             
-    # 5. Save the new pairs to the NEW versioned CSV file
+    # --- 5. Save results to files ---
     try:
-        # Saving cleaned names
-        pairs_to_save = []
-        for (p1_id, p2_id) in new_pairs:
-            p1_name = member_lookup[p1_id]['Full Name']
-            p2_name = member_lookup[p2_id]['Full Name']
-            pairs_to_save.append((p1_name, p2_name))
-        
-        new_pairs_df = pd.DataFrame(pairs_to_save, columns=['Person1', 'Person2'])
-        
+        # --- 5a. Save to VERSIONED HISTORY (CSV) ---
+        new_pairs_df = pd.DataFrame(pairs_for_csv_history, columns=['Person1', 'Person2'])
         new_file_name = f"{PAST_MATCHES_PREFIX}{next_version}{PAST_MATCHES_SUFFIX}"
         
         new_pairs_df.to_csv(
             new_file_name,
             index=False 
         )
-        print(f"\nSuccessfully saved {len(new_pairs)} new pairs to {new_file_name}")
+        print(f"\nSuccessfully saved {len(new_pairs)} new pairs to history file: {new_file_name}")
+        
+        # --- 5b. Save to CURRENT MATCHES (TXT) ---
+        # This is the new, human-readable file that overwrites itself
+        with open(CURRENT_MATCHES_FILE, 'w', encoding='utf-8') as f:
+            f.write("--- New Coffee Chat Pairs ---\n")
+            for line in lines_for_txt_output:
+                f.write(f"{line}\n")
+            
+            if unmatched_names:
+                f.write("\n--- Unmatched People (Odd one out) ---\n")
+                for name in unmatched_names:
+                    f.write(f"{name}\n")
+        
+        print(f"Successfully saved current matches to readable file: {CURRENT_MATCHES_FILE}")
         
     except Exception as e:
         print(f"\nError saving new pairs: {e}")
-
 
 # --- Run the script ---
 if __name__ == "__main__":
