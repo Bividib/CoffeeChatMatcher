@@ -268,5 +268,6 @@ $RECYCLE.BIN/
 
 # Excel files
 *.xlsx
+*.csv
 
 # End of https://www.toptal.com/developers/gitignore/api/python,visualstudiocode,windows,macos,linux

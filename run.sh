@@ -8,14 +8,14 @@
 # 2. Find the directory this script is in.
 # 3. Check that Python 3 is installed.
 # 4. Create a 'requirements.txt' file.
-# 5. Create a Python virtual environment and install libraries (silently).
+# 5. Check for venv, create if missing, then install libraries.
 # 6. Run the Python script, passing along an optional file path.
 #
 
 # --- 1. Stop the script on any error ---
 set -e
 
-echo "☕ Starting the KBC Coffee Pair setup..."
+echo "Starting the KBC Coffee Pair setup..."
 echo "----------------------------------------"
 
 # --- 2. Find the script's own directory ---
@@ -29,44 +29,56 @@ echo "Running in project directory: $SCRIPT_DIR"
 
 # --- 3. Check for Python 3 ---
 if ! command -v python3 &> /dev/null; then
-    echo "❌ Error: Python 3 is not installed."
+    echo "[ERROR] Python 3 is not installed."
     echo "Please install Python 3 to continue."
     exit 1
 else
-    echo "✅ Python 3 found."
+    echo "[OK] Python 3 found."
 fi
 
-# --- 4. Create requirements.txt (silently) ---
-# This uses a 'here document' to write the lines
-# between <<EOF and EOF into the file.
-cat > requirements.txt << EOF
-pandas
-openpyxl
-EOF
 
-# --- 5. Create Virtual Environment and Install (silently) ---
+# --- 5. Create Virtual Environment and Install ---
 echo "Setting up environment and installing libraries... (This may take a moment)"
 
-# Create venv and redirect all output to null
-python3 -m venv venv > /dev/null 2>&1
+# Detect OS and set the correct venv activation path
+# MINGW or MSYS indicates Git Bash on Windows
+if [[ "$(uname -s)" == *"MINGW"* ]] || [[ "$(uname -s)" == *"MSYS"* ]]; then
+    ACTIVATE_SCRIPT="venv/Scripts/activate"
+else
+    ACTIVATE_SCRIPT="venv/bin/activate"
+fi
 
-# Activate the virtual environment
-source venv/bin/activate
+# Check if the venv activation script already exists
+# [ ! -f "path" ] means "if this file does NOT exist"
+if [ ! -f "$ACTIVATE_SCRIPT" ]; then
+    echo "  Creating new virtual environment (one-time setup)..."
+    # --- MODIFIED ---
+    # We WANT to see the error if this fails.
+    python3 -m venv venv
+else
+    echo "  Found existing virtual environment."
+fi
 
-# Install dependencies and redirect all output to null
-pip install -r requirements.txt > /dev/null 2>&1
+# Activate the virtual environment using the correct path
+source "$ACTIVATE_SCRIPT"
 
-echo "✅ Environment is ready."
+# --- MODIFIED ---
+# We WANT to see what's being installed.
+echo "  Installing/checking requirements..."
+pip install -r requirements.txt
+
+echo "[OK] Environment is ready."
 
 # --- 6. Run the Python Script ---
 echo "----------------------------------------"
-echo "🚀 Running the coffee pair script..."
+echo "Running the coffee pair script..."
 echo ""
 
 # The Python script to run
 PYTHON_SCRIPT="create_coffee_pairs.py"
 
 # Check if the user provided an argument (a file path)
+# [ -n "$1" ] means "if $1 is not empty string"
 if [ -n "$1" ]; then
     # If $1 exists, pass it to the Python script.
     # The quotes are vital to handle paths with spaces.
@@ -81,5 +93,6 @@ fi
 
 echo ""
 echo "----------------------------------------"
-echo "🎉 Pairing complete!"
+echo "Pairing complete!"
 echo "Check the output above"
+
