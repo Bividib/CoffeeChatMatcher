@@ -41,8 +41,7 @@ exit /b 1
 
 :setup
 
-
-:: --- 5. Create Virtual Environment and Install (silently) ---
+:: --- 4. Create Virtual Environment and Install (silently) ---
 echo Setting up environment and installing libraries... (This may take a moment)
 
 :: Check if the venv activation script already exists
@@ -64,7 +63,7 @@ pip install -r requirements.txt > nul 2>&1
 
 echo [OK] Environment is ready.
 
-:: --- 6. Run the Python Script ---
+:: --- 5. Run the Python Script ---
 echo ----------------------------------------
 echo Running the coffee pair script...
 echo.
@@ -75,11 +74,10 @@ set "PYTHON_SCRIPT=create_coffee_pairs.py"
 :: %~1 removes quotes from the path, "%~1" re-adds them safely
 if not "%~1"=="" (
 echo Using provided Excel file: %1
-:: After activation, 'python' should point to the venv
-python "%PYTHON_SCRIPT%" "%~1"
+".\venv\Scripts\python.exe" "%PYTHON_SCRIPT%" "%~1"
 ) else (
 echo No Excel file provided. Python script will search for one...
-python "%PYTHON_SCRIPT%"
+".\venv\Scripts\python.exe" "%PYTHON_SCRIPT%"
 )
 
 echo.
