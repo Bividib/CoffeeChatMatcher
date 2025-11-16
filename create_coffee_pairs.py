@@ -68,8 +68,8 @@ def load_member_data(member_file):
         if missing_cols:
             print("----------------------------------------------------------------")
             print(f"❌ FATAL ERROR: Missing required columns in '{member_file}':")
-            print(f"  Missing: {', '.join(missing_cols)}")
-            print(f"  Available columns are: {list(df.columns)}")
+            print(f"   Missing: {', '.join(missing_cols)}")
+            print(f"   Available columns are: {list(df.columns)}")
             print("\nPlease ensure the 'All Exe & Ass' sheet has 'Full Name', 'Department', and 'Exec or Assoc' columns.")
             print("----------------------------------------------------------------")
             sys.exit(1)
@@ -92,13 +92,15 @@ def load_member_data(member_file):
             print("----------------------------------------------------------------")
             print(f"❌ FATAL ERROR: Duplicate names found in '{member_file}':")
             for name in duplicate_names:
-                print(f"  - {name}")
+                print(f"   - {name}")
             print("\nPlease correct the Excel file before running again.")
             print("----------------------------------------------------------------")
             sys.exit(1)
 
         # --- 5. CONVERT TO DICTIONARY ---
         # This code now only runs if no duplicates are found
+        # We reset the index to get clean 0-based integer keys
+        df = df.reset_index(drop=True)
         member_lookup = df.to_dict('index')
         all_people_ids = list(member_lookup.keys())
         
@@ -113,7 +115,7 @@ def load_member_data(member_file):
         sys.exit(1)
 
 
-def load_past_matches(): # <-- MODIFIED
+def load_past_matches():
     """
     Loads and cleans all pairs from ALL versioned history files.
     Returns a set of all past pairs and the next version number to use.
@@ -183,8 +185,8 @@ def is_valid_pair(p1_id, p2_id, member_lookup, past_pairs):
     p1_data = member_lookup[p1_id]
     p2_data = member_lookup[p2_id]
     
-    p1_name = p1_data['Full Name'] # This is now trimmed
-    p2_name = p2_data['Full Name'] # This is now trimmed
+    p1_name = p1_data['Full Name'] 
+    p2_name = p2_data['Full Name'] 
     
     # 1. Check for past matches (compares trimmed name to trimmed history)
     if frozenset([p1_name, p2_name]) in past_pairs:
@@ -214,6 +216,7 @@ def create_new_pairs():
     
     random.shuffle(people_to_pair)
     new_pairs = [] # Stores tuples of (p1_id, p2_id)
+    trios = []     # Stores tuples of (p1_id, p2_id, p3_id)
     unmatched = [] # Stores unmatched p_ids
 
     print(f"Starting with {len(people_to_pair)} people...")
@@ -234,12 +237,73 @@ def create_new_pairs():
 
     unmatched.extend(people_to_pair)
 
-    # --- 4. Output and Save Results ---
-    print("\n--- New Coffee Chat Pairs ---")
+    if len(unmatched) == 1:
+        print("\nAttempting to create one trio for the single unmatched person...")
+        odd_person_id = unmatched.pop(0) # Get the lone person
+        found_trio_pair_index = -1
+        
+        # Shuffle new_pairs to randomly pick a pair to join
+        random.shuffle(new_pairs) 
+        
+        for i, (p1_id, p2_id) in enumerate(new_pairs):
+            # Check if the odd person is a valid match for BOTH people in the pair
+            valid_with_p1 = is_valid_pair(odd_person_id, p1_id, member_lookup, past_pairs)
+            valid_with_p2 = is_valid_pair(odd_person_id, p2_id, member_lookup, past_pairs)
+            
+            if valid_with_p1 and valid_with_p2:
+                found_trio_pair_index = i
+                break
+        
+        if found_trio_pair_index != -1:
+            # Valid trio found!
+            # 1. Remove the pair from new_pairs
+            p1_id, p2_id = new_pairs.pop(found_trio_pair_index)
+            # 2. Add the trio to the trios list
+            trios.append((p1_id, p2_id, odd_person_id))
+            
+            p1_name = member_lookup[p1_id]['Full Name']
+            p2_name = member_lookup[p2_id]['Full Name']
+            p3_name = member_lookup[odd_person_id]['Full Name']
+            print(f"Success: Formed trio: {p1_name}, {p2_name}, {p3_name}")
+        else:
+            # No valid trio found, add the person back to unmatched
+            print("Could not find a valid pair to form a trio. Person remains unmatched.")
+            unmatched.append(odd_person_id)
+
+
+    # --- 5. Output and Save Results ---
     
     # These lists will hold the *names* for saving
     pairs_for_csv_history = []
-    lines_for_txt_output = []
+    lines_for_pair_output = []
+    lines_for_trio_output = []
+
+    # --- 5a. Process Trios ---
+    print("\n--- Coffee Chat Trio ---")
+    if not trios:
+        print("None")
+        
+    for (p1_id, p2_id, p3_id) in trios:
+        p1_name = member_lookup[p1_id]['Full Name']
+        p2_name = member_lookup[p2_id]['Full Name']
+        p3_name = member_lookup[p3_id]['Full Name']
+        
+        # 1. Print to console
+        print(f"{p1_name} <--> {p2_name} <--> {p3_name}")
+        
+        # 2. Prepare for saving
+        # Add all 3 pair combinations to the history CSV
+        pairs_for_csv_history.append((p1_name, p2_name))
+        pairs_for_csv_history.append((p1_name, p3_name))
+        pairs_for_csv_history.append((p2_name, p3_name))
+        
+        # Add the single trio line to the TXT output
+        lines_for_trio_output.append(f"{p1_name} <--> {p2_name} <--> {p3_name}")
+
+    # --- 5b. Process Pairs ---
+    print("\n--- New Coffee Chat Pairs ---")
+    if not new_pairs:
+        print("None")
 
     for (p1_id, p2_id) in new_pairs:
         p1_name = member_lookup[p1_id]['Full Name']
@@ -250,38 +314,59 @@ def create_new_pairs():
         
         # 2. Prepare for saving
         pairs_for_csv_history.append((p1_name, p2_name))
-        lines_for_txt_output.append(f"{p1_name} <--> {p2_name}")
+        lines_for_pair_output.append(f"{p1_name} <--> {p2_name}")
 
-    print("\n--- Unmatched People (Odd one out) ---")
+    # --- 5c. Process Unmatched ---
+    print("\n--- Unmatched People ---")
+    if not unmatched:
+        print("None")
+        
     unmatched_names = []
     for p_id in unmatched:
         p_name = member_lookup[p_id]['Full Name']
         print(p_name)
         unmatched_names.append(p_name)
             
-    # --- 5. Save results to files ---
+    # --- 6. Save results to files ---
     try:
-        # --- 5a. Save to VERSIONED HISTORY (CSV) ---
+        # --- 6a. Save to VERSIONED HISTORY (CSV) ---
         new_pairs_df = pd.DataFrame(pairs_for_csv_history, columns=['Person1', 'Person2'])
         new_file_name = f"{PAST_MATCHES_PREFIX}{next_version}{PAST_MATCHES_SUFFIX}"
         
-        new_pairs_df.to_csv(
-            new_file_name,
-            index=False 
-        )
-        print(f"\nSuccessfully saved {len(new_pairs)} new pairs to history file: {new_file_name}")
+        if not new_pairs_df.empty:
+            new_pairs_df.to_csv(
+                new_file_name,
+                index=False 
+            )
+            print(f"\nSuccessfully saved {len(pairs_for_csv_history)} new pair combinations to history file: {new_file_name}")
+        else:
+            print("\nNo new pairs or trios formed. History file not updated.")
         
-        # --- 5b. Save to CURRENT MATCHES (TXT) ---
+        # --- 6b. Save to CURRENT MATCHES (TXT) ---
         # This is the new, human-readable file that overwrites itself
         with open(CURRENT_MATCHES_FILE, 'w', encoding='utf-8') as f:
-            f.write("--- New Coffee Chat Pairs ---\n")
-            for line in lines_for_txt_output:
-                f.write(f"{line}\n")
             
+            if lines_for_trio_output:
+                f.write("--- Coffee Chat Trio ---\n")
+                for line in lines_for_trio_output:
+                    f.write(f"{line}\n")
+                f.write("\n") # Add spacing
+            
+            f.write("--- New Coffee Chat Pairs ---\n")
+            if lines_for_pair_output:
+                for line in lines_for_pair_output:
+                    f.write(f"{line}\n")
+            else:
+                f.write("None\n")
+
             if unmatched_names:
-                f.write("\n--- Unmatched People (Odd one out) ---\n")
+                f.write("\n--- Unmatched People ---\n")
                 for name in unmatched_names:
                     f.write(f"{name}\n")
+            else:
+                f.write("\n--- Unmatched People ---\n")
+                f.write("None\n")
+
         
         print(f"Successfully saved current matches to readable file: {CURRENT_MATCHES_FILE}")
         
@@ -291,4 +376,3 @@ def create_new_pairs():
 # --- Run the script ---
 if __name__ == "__main__":
     create_new_pairs()
-
