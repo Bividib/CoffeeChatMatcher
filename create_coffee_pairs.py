@@ -367,6 +367,28 @@ def create_new_pairs():
                 f.write("\n--- Unmatched People ---\n")
                 f.write("None\n")
 
+        try:
+            # 1. Get all history found at the start
+            # Note: We need to convert the set 'past_pairs' back to a list, 
+            # or simply re-read the files. To keep it simple, let's just 
+            # Append the NEW pairs to a master file.
+            
+            master_filename = "MASTER_HISTORY_VIEW_ONLY.csv"
+        
+            # Check if master exists to determine if we need a header
+            header_needed = not os.path.exists(master_filename)
+            
+            new_pairs_df.to_csv(
+                master_filename, 
+                mode='a', # 'a' means Append (add to bottom)
+                header=header_needed, 
+                index=False
+            )
+            print(f"Updated '{master_filename}' with the new pairs.")
+            
+        except Exception as e:
+            print(f"Could not update master file: {e}")
+
         
         print(f"Successfully saved current matches to readable file: {CURRENT_MATCHES_FILE}")
         
